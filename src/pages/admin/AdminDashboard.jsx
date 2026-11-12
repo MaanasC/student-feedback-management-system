@@ -20,17 +20,17 @@ import Button from "../../components/common/Button";
 import Badge from "../../components/common/Badge";
 
 export function AdminDashboard() {
-  const { adminMetrics, navigateTo } = useApp();
+  const { adminMetrics, navigateTo, exportCSV } = useApp();
   const [selectedSemester, setSelectedSemester] = useState("Fall Semester 2024");
 
-  const monthlyPoints = [
-    { month: "Sep", val: 3.9, y: 70 },
-    { month: "Oct", val: 4.1, y: 55 },
-    { month: "Nov", val: 4.5, y: 35 },
-    { month: "Dec", val: 4.3, y: 45 },
-    { month: "Jan", val: 4.7, y: 20 },
-    { month: "Feb", val: 4.8, y: 15 }
-  ];
+  const monthlyPoints = adminMetrics?.ratingTrendsMonthly?.length
+    ? adminMetrics.ratingTrendsMonthly
+    : [
+        { month: "Sep", val: 4.2, y: 55 },
+        { month: "Oct", val: 4.5, y: 35 },
+        { month: "Nov", val: 4.7, y: 20 },
+        { month: "Dec", val: 4.8, y: 15 },
+      ];
 
   return (
     <div className="space-y-8 w-full">
@@ -60,7 +60,16 @@ export function AdminDashboard() {
             variant="secondary"
             size="lg"
             icon={Download}
-            onClick={() => alert("Exporting comprehensive institution evaluation report (PDF)...")}
+            onClick={() => {
+              const exportData = (adminMetrics?.activeCampaigns || []).map((c) => ({
+                Campaign: c.name,
+                Department: c.department || c.dept,
+                EnrolledStudents: c.enrolled,
+                Responses: c.responses,
+                Status: c.status,
+              }));
+              exportCSV(exportData, "Institutional_Campaigns_Report.csv");
+            }}
             className="rounded-xl font-bold py-2.5 px-5 shadow-xs"
           >
             Export Report
@@ -68,30 +77,30 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* Top 4 KPI Metric Cards */}
+      {/* Top 4 KPI Metric Cards (Dynamic Live Database State) */}
       <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
         <StatCard
           title="Total Students"
-          value="14,250"
-          trend="+2.4%"
+          value={adminMetrics?.totalStudents || "0"}
+          trend="Live Count"
           icon={Users}
         />
         <StatCard
           title="Total Faculty"
-          value="845"
-          trend="+18 New"
+          value={adminMetrics?.totalFaculty || "0"}
+          trend="Active Faculty"
           icon={GraduationCap}
         />
         <StatCard
           title="Total Courses"
-          value="1,120"
-          trend="+12 New"
+          value={adminMetrics?.totalCourses || "0"}
+          trend="Registered"
           icon={BookOpen}
         />
         <StatCard
           title="Feedback Responses"
-          value="38.4k"
-          trend="+12%"
+          value={adminMetrics?.feedbackResponses || "0"}
+          trend="Evaluations"
           icon={MessageSquareCheck}
         />
       </div>
@@ -106,11 +115,11 @@ export function AdminDashboard() {
                 Overall Feedback Rating
               </h3>
               <p className="text-sm text-slate-500 mt-1">
-                Institutional aggregate satisfaction score across months
+                Institutional aggregate satisfaction score across evaluation cycles
               </p>
             </div>
             <span className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
-              <TrendingUp className="h-4 w-4" /> 4.8 Current Peak
+              <TrendingUp className="h-4 w-4" /> {adminMetrics?.institutionalAverageRating || 4.7} Current Aggregate
             </span>
           </div>
 
@@ -190,7 +199,7 @@ export function AdminDashboard() {
             </div>
 
             <div className="divide-y divide-slate-100 mt-3 space-y-3">
-              {adminMetrics.recentActivities.map((act) => (
+              {(adminMetrics?.recentActivities || []).map((act) => (
                 <div key={act.id} className="pt-3 pb-1 flex items-start gap-3.5">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shrink-0 mt-0.5">
                     {act.iconType === "alert" ? (
@@ -259,7 +268,7 @@ export function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium">
-              {adminMetrics.activeCampaigns.map((camp) => (
+              {(adminMetrics?.activeCampaigns || []).map((camp) => (
                 <tr key={camp.id} className="hover:bg-slate-50/80 transition">
                   <td className="py-4 px-6 font-bold text-slate-800">
                     {camp.name}

@@ -17,34 +17,12 @@ import Badge from "../../components/common/Badge";
 import StarRating from "../../components/common/StarRating";
 
 export function FacultyDashboard() {
-  const { navigateTo } = useApp();
+  const { navigateTo, facultyData, currentUser, exportCSV } = useApp();
 
-  const facultyCourses = [
-    {
-      code: "CS 401",
-      name: "Advanced Software Engineering",
-      status: "Active",
-      enrolled: 45,
-      responses: 38,
-      rating: 4.8
-    },
-    {
-      code: "CS 220",
-      name: "Data Structures & Algorithms",
-      status: "Active",
-      enrolled: 120,
-      responses: 86,
-      rating: 4.5
-    },
-    {
-      code: "CS 550",
-      name: "Machine Learning Ethics",
-      status: "Pending",
-      enrolled: 30,
-      responses: 0,
-      rating: null
-    }
-  ];
+  const coursesList = facultyData?.courses || [];
+  const totalCourses = coursesList.length;
+  const avgRating = Number(facultyData?.averageRating || 4.6);
+  const totalResp = facultyData?.totalResponses || 124;
 
   const ratingTrends = [
     { label: "W1", value: 4.2, height: "70%" },
@@ -54,14 +32,25 @@ export function FacultyDashboard() {
   ];
 
   const handleExport = () => {
-    alert("Generating Faculty Evaluation Summary Report (PDF)... Download starting.");
+    const exportData = coursesList.map((c) => ({
+      CourseCode: c.code,
+      CourseName: c.name,
+      Semester: c.term,
+      StudentResponses: c.responses,
+      AverageRating: c.rating,
+      EvaluationStatus: c.status,
+    }));
+    exportCSV(
+      exportData,
+      `Faculty_Evaluation_Report_${currentUser?.name?.replace(/\s+/g, "_") || "Faculty"}.csv`
+    );
   };
 
   const handleViewAnalytics = (course) => {
     navigateTo("feedback-analysis", {
       courseCode: course.code,
       courseName: course.name,
-      facultyName: "Dr. Alan Turing",
+      facultyName: currentUser?.name || "Dr. Alan Turing",
       overallRating: course.rating || 4.6,
       totalResponses: course.responses || 124
     });
@@ -76,7 +65,7 @@ export function FacultyDashboard() {
             Faculty Dashboard
           </h1>
           <p className="mt-2 text-sm md:text-base font-medium text-slate-500">
-            Fall Semester 2024 Overview • Department of Computer Science
+            {currentUser?.name || "Dr. Alan Turing"} • Academic Performance & Evaluations
           </p>
         </div>
 
@@ -95,8 +84,8 @@ export function FacultyDashboard() {
       <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
         <StatCard
           title="Courses Taught"
-          value="3"
-          subtext="Fall 2024 term"
+          value={totalCourses}
+          subtext="Active Academic Term"
           icon={BookOpen}
         />
         <div className="rounded-2xl border border-slate-200/90 bg-white p-6 md:p-7 shadow-xs">
@@ -109,18 +98,18 @@ export function FacultyDashboard() {
             </div>
           </div>
           <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-900">4.6</span>
+            <span className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-slate-900">{avgRating.toFixed(1)}</span>
             <span className="text-sm text-slate-400 font-bold">/ 5.0</span>
           </div>
           <div className="mt-4">
-            <StarRating rating={4.6} size="md" />
+            <StarRating rating={avgRating} size="md" />
           </div>
         </div>
 
         <StatCard
           title="Total Responses"
-          value="124"
-          subtext="Across all courses"
+          value={totalResp}
+          subtext="Across active courses"
           icon={Users}
         />
         <StatCard
@@ -139,7 +128,7 @@ export function FacultyDashboard() {
           <h2 className="text-xl md:text-2xl font-bold text-slate-800">My Courses</h2>
 
           <div className="space-y-4">
-            {facultyCourses.map((c) => (
+            {coursesList.map((c) => (
               <div
                 key={c.code}
                 className="flex flex-col justify-between gap-5 rounded-2xl border border-slate-200/90 bg-white p-6 md:p-7 shadow-xs transition hover:border-slate-300 hover:shadow-sm sm:flex-row sm:items-center"

@@ -11,12 +11,17 @@ export function Header() {
     navigateTo,
     globalSearch = "",
     setGlobalSearch,
-    notifications = []
+    notifications = [],
+    markNotificationRead,
+    markAllNotificationsRead,
+    openSubmissionReview,
   } = useApp() || {};
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <header className="sticky top-0 z-30 flex h-20 w-full items-center justify-between border-b border-slate-200 bg-white px-6 md:px-10 shadow-xs">
@@ -41,7 +46,7 @@ export function Header() {
           <button
             onClick={() => setShowRoleMenu(!showRoleMenu)}
             className="hidden sm:flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition shadow-xs"
-            title="Switch demo role to view all wireframe views"
+            title="Active Portal Role"
           >
             <Shield className="h-4 w-4 text-blue-600" />
             <span>Role: {currentRole}</span>
@@ -51,7 +56,7 @@ export function Header() {
           {showRoleMenu && (
             <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-slate-200 bg-white py-2 shadow-xl z-50">
               <div className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Switch Preview Role
+                Switch Portal Role
               </div>
               <button
                 onClick={() => {
@@ -101,24 +106,72 @@ export function Header() {
             aria-label="Notifications"
           >
             <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white ring-2 ring-white">
-              {notifications.length}
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[10px] font-bold text-white ring-2 ring-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {showNotifications && (
             <div className="absolute right-0 mt-2 w-88 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl z-50">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <span className="text-sm font-bold text-slate-800">Notifications</span>
-                <span className="text-xs font-semibold text-blue-600 cursor-pointer hover:underline">Mark all read</span>
+                <span className="text-sm font-bold text-slate-800">
+                  Notifications {unreadCount > 0 && `(${unreadCount} unread)`}
+                </span>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={() => markAllNotificationsRead && markAllNotificationsRead()}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    Mark all read
+                  </button>
+                )}
               </div>
               <div className="divide-y divide-slate-100 mt-2 max-h-72 overflow-y-auto">
-                {notifications.map((n) => (
-                  <div key={n.id} className="py-2.5 hover:bg-slate-50 px-2 rounded-lg transition">
-                    <p className="text-xs font-semibold text-slate-800">{n.title}</p>
-                    <span className="text-[11px] text-slate-400">{n.time}</span>
+                {notifications.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400 font-medium">
+                    No new notifications right now.
                   </div>
-                ))}
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.id || n._id}
+                      onClick={() => {
+                        if (markNotificationRead) markNotificationRead(n.id || n._id);
+                        if (
+                          (n.relatedResponseId || n.title?.includes("Feedback Submitted") || n.title?.includes("Submission")) &&
+                          openSubmissionReview
+                        ) {
+                          openSubmissionReview(n.relatedResponseId || n.relatedFormId);
+                        } else if (n.relatedFormId && currentRole === "Student") {
+                          navigateTo("student-dashboard");
+                        } else if (currentRole === "Administrator") {
+                          navigateTo("feedback-form-management");
+                        }
+                        setShowNotifications(false);
+                      }}
+                      className={`py-2.5 px-2.5 rounded-xl transition cursor-pointer flex items-start gap-2.5 ${
+                        !n.read ? "bg-blue-50/60 hover:bg-blue-50" : "hover:bg-slate-50"
+                      }`}
+                    >
+                      <div
+                        className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${
+                          !n.read ? "bg-blue-600" : "bg-transparent"
+                        }`}
+                      />
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-slate-800">{n.title}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                          {n.message}
+                        </p>
+                        <span className="text-[10px] text-slate-400 font-medium mt-1 block">
+                          {n.time}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}

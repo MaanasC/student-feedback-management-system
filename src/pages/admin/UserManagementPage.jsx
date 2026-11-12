@@ -20,7 +20,7 @@ import Badge from "../../components/common/Badge";
 import Modal from "../../components/common/Modal";
 
 export function UserManagementPage() {
-  const { users, addUser, updateUser, deleteUser } = useApp();
+  const { users, addUser, updateUser, deleteUser, exportCSV } = useApp();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
@@ -37,10 +37,11 @@ export function UserManagementPage() {
   });
 
   const filteredUsers = users.filter((u) => {
+    const idStr = String(u.userId || u._id || "");
     const matchesSearch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.userId.toLowerCase().includes(searchTerm.toLowerCase());
+      (u.name && u.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      idStr.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesRole =
       roleFilter === "All Roles" || u.role === roleFilter;
@@ -64,7 +65,7 @@ export function UserManagementPage() {
   };
 
   const handleOpenEditModal = (u) => {
-    setEditingUserId(u.userId);
+    setEditingUserId(u.userId || u._id);
     setFormData({
       name: u.name,
       email: u.email,
@@ -114,10 +115,19 @@ export function UserManagementPage() {
             variant="secondary"
             size="lg"
             icon={Download}
-            onClick={() => alert("Exporting user directory to CSV...")}
+            onClick={() => {
+              const exportData = filteredUsers.map((u) => ({
+                Name: u.name,
+                Email: u.email,
+                Role: u.role,
+                Department: u.department,
+                Status: u.status,
+              }));
+              exportCSV(exportData, "University_User_Directory.csv");
+            }}
             className="rounded-xl font-bold py-2.5 px-5 shadow-xs"
           >
-            Export
+            Export Directory
           </Button>
 
           <Button
@@ -212,12 +222,12 @@ export function UserManagementPage() {
                     u.adminDetails?.department ||
                     "General";
                   return (
-                    <tr key={u.userId} className="hover:bg-slate-50/80 transition">
+                    <tr key={u.userId || u._id} className="hover:bg-slate-50/80 transition">
                       {/* User Cell */}
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3.5">
                           <img
-                            src={u.avatar}
+                            src={u.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
                             alt={u.name}
                             className="h-10 w-10 rounded-full object-cover border border-slate-200 shadow-xs"
                           />
@@ -254,7 +264,7 @@ export function UserManagementPage() {
 
                       {/* Status Cell */}
                       <td className="py-4 px-6">
-                        <Badge variant={u.status.toLowerCase()} size="md">{u.status}</Badge>
+                        <Badge variant={(u.status || "active").toLowerCase()} size="md">{u.status || "Active"}</Badge>
                       </td>
 
                       {/* Actions Cell */}
@@ -269,8 +279,8 @@ export function UserManagementPage() {
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm(`Are you sure you want to deactivate or remove user "${u.name}"?`)) {
-                                deleteUser(u.userId);
+                              if (confirm(`Are you sure you want to delete user "${u.name}"?`)) {
+                                deleteUser(u.userId || u._id);
                               }
                             }}
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition"

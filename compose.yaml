@@ -1,0 +1,86 @@
+name: edufeedback
+
+services:
+  # -------------------------------------------------------------
+  # 1. MongoDB Database Container
+  #    Persistent storage for users, courses, forms, and responses
+  # -------------------------------------------------------------
+  mongo:
+    image: mongo:7.0
+    container_name: edufeedback-db
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_DATABASE=StudentFeedbackDB
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - edufeedback-net
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # -------------------------------------------------------------
+  # 2. Express.js REST API & Socket.IO Gateway Container
+  # -------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: edufeedback-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGODB_URI=${MONGODB_URI:-mongodb://mongo:27017/StudentFeedbackDB}
+      - JWT_SECRET=${JWT_SECRET:-super_secret_university_feedback_jwt_key_2026_secure}
+      - JWT_EXPIRES_IN=7d
+      - AUTO_SEED=${AUTO_SEED:-false}
+    networks:
+      - edufeedback-net
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:5000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # -------------------------------------------------------------
+  # 3. React Frontend Container (Nginx Static + Reverse Proxy)
+  # -------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: edufeedback-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "5173:80"
+    networks:
+      - edufeedback-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:80/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  mongo-data:
+    name: edufeedback-mongo-data
+
+networks:
+  edufeedback-net:
+    name: edufeedback-network
+    driver: bridge

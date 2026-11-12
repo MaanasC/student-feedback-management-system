@@ -18,7 +18,7 @@ import Badge from "../../components/common/Badge";
 import StarRating from "../../components/common/StarRating";
 
 export function FeedbackAnalysisPage() {
-  const { selectedAnalysisCourse, navigateTo } = useApp();
+  const { selectedAnalysisCourse, navigateTo, exportCSV } = useApp();
   const [selectedTerm, setSelectedTerm] = useState("Fall 2023");
   const [selectedCycle, setSelectedCycle] = useState("Mid-Term Cycle");
   const [commentFilter, setCommentFilter] = useState("All");
@@ -177,10 +177,20 @@ export function FeedbackAnalysisPage() {
             variant="secondary"
             size="lg"
             icon={Download}
-            onClick={() => alert("Exporting Feedback Analysis as PDF report...")}
+            onClick={() => {
+              const exportData = (questionStats || []).map((q) => ({
+                Question: q.question,
+                Category: q.category,
+                AverageRating: q.rating,
+              }));
+              exportCSV(
+                exportData,
+                `Feedback_Analysis_${data.courseCode || "Course"}.csv`
+              );
+            }}
             className="rounded-xl font-bold py-2.5 px-5 shadow-xs"
           >
-            Export
+            Export Analysis
           </Button>
         </div>
       </div>

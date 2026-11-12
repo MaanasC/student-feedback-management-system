@@ -18,25 +18,21 @@ export function Sidebar() {
 
   const studentNav = [
     { label: "Dashboard", view: "student-dashboard", icon: LayoutDashboard },
-    { label: "Courses", view: "student-dashboard", icon: BookOpen },
-    { label: "Feedback", view: "student-dashboard", icon: MessageSquareCheck },
     { label: "Settings", view: "profile", icon: Settings }
   ];
 
   const facultyNav = [
     { label: "Dashboard", view: "faculty-dashboard", icon: LayoutDashboard },
-    { label: "Courses", view: "faculty-dashboard", icon: BookOpen },
-    { label: "Feedback", view: "faculty-dashboard", icon: MessageSquareCheck },
     { label: "Analytics", view: "feedback-analysis", icon: BarChart3 },
     { label: "Settings", view: "profile", icon: Settings }
   ];
 
   const adminNav = [
     { label: "Dashboard", view: "admin-dashboard", icon: LayoutDashboard },
-    { label: "Courses", view: "course-management", icon: BookOpen },
-    { label: "Feedback", view: "feedback-form-management", icon: MessageSquareCheck },
-    { label: "Analytics", view: "reports-analytics", icon: BarChart3 },
     { label: "User Management", view: "user-management", icon: Users },
+    { label: "Course Management", view: "course-management", icon: BookOpen },
+    { label: "Feedback Forms", view: "feedback-form-management", icon: MessageSquareCheck },
+    { label: "Reports & Analytics", view: "reports-analytics", icon: BarChart3 },
     { label: "Settings", view: "profile", icon: Settings }
   ];
 

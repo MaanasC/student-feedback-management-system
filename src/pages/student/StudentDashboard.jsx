@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import {
   BookOpen,
   Clock,
@@ -30,15 +30,12 @@ export function StudentDashboard() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All"); // 'All' | 'Pending' | 'Completed'
-  const [filterStats, setFilterStats] = useState({ total: 0, pending: 0, completed: 0 });
 
-  useEffect(() => {
-    setFilterStats({
-      total: pendingForms.length + studentSubmissions.length,
-      pending: pendingForms.length,
-      completed: studentSubmissions.length
-    });
-  }, [pendingForms, studentSubmissions]);
+  const filterStats = useMemo(() => ({
+    total: pendingForms.length + studentSubmissions.length,
+    pending: pendingForms.length,
+    completed: studentSubmissions.length,
+  }), [pendingForms, studentSubmissions]);
 
   const handleStartFeedback = (pendingItem) => {
     const form =
@@ -105,22 +102,21 @@ export function StudentDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-800">
-            Welcome back, {currentUser?.name?.split(" ")[0] || "Maanas"}
+            {currentUser?.isNewRegistration
+              ? `Welcome to EduFeedback, ${currentUser?.name?.split(" ")[0] || "Student"}!`
+              : `Welcome back, ${currentUser?.name?.split(" ")[0] || "Student"}!`}
           </h1>
           <p className="mt-2 text-sm md:text-base font-medium text-slate-500">
-            Student Feedback & Evaluation Portal • Academic Year 2024-2025
+            Student Feedback & Evaluation Portal • Academic Term Fall 2024
           </p>
         </div>
 
-        {/* Reset Demo State Button */}
-        <button
-          onClick={resetDemoState}
-          className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition shadow-xs"
-          title="Reset pending feedback items to demonstrate submission flow again"
-        >
-          <RotateCcw className="h-4 w-4" />
-          <span>Reset Demo Submissions</span>
-        </button>
+        <div className="inline-flex items-center gap-2 rounded-xl bg-blue-50 border border-blue-200 px-4 py-2 text-xs sm:text-sm font-bold text-blue-700 shadow-xs">
+          <Calendar className="h-4 w-4 text-blue-600" />
+          <span>
+            Semester {currentUser?.profile?.semester || currentUser?.studentDetails?.semester || currentUser?.semester || 5} • {currentUser?.department || "Computer Science"}
+          </span>
+        </div>
       </div>
 
       {/* Top 3 Stat Cards */}

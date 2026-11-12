@@ -17,12 +17,15 @@ import ReportsAnalyticsPage from "./pages/admin/ReportsAnalyticsPage";
 import ProfilePage from "./pages/common/ProfilePage";
 
 function AppContent() {
-  const { currentView } = useApp();
+  const { currentView, currentUser } = useApp();
 
   const renderCurrentView = () => {
+    // Always show Login Page as the landing page if not authenticated or viewing login
+    if (!currentUser || currentView === "login") {
+      return <LoginPage />;
+    }
+
     switch (currentView) {
-      case "login":
-        return <LoginPage />;
       case "student-dashboard":
         return <StudentDashboard />;
       case "feedback-form":
@@ -46,6 +49,8 @@ function AppContent() {
       case "profile":
         return <ProfilePage />;
       default:
+        if (currentUser?.role === "Faculty") return <FacultyDashboard />;
+        if (currentUser?.role === "Administrator") return <AdminDashboard />;
         return <StudentDashboard />;
     }
   };

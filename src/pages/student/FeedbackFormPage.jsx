@@ -40,13 +40,10 @@ export function FeedbackFormPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [lastAutoSaved, setLastAutoSaved] = useState(null);
 
-  useEffect(() => {
-    if (Object.keys(ratings).length > 0 || comments.length > 0) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      setLastAutoSaved(timeStr);
-    }
-  }, [ratings, comments]);
+  const updateSavedTime = () => {
+    const now = new Date();
+    setLastAutoSaved(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+  };
 
   const handleRatingClick = (questionId, value) => {
     setRatings((prev) => ({
@@ -54,6 +51,12 @@ export function FeedbackFormPage() {
       [questionId]: value
     }));
     setErrorMsg("");
+    updateSavedTime();
+  };
+
+  const handleCommentChange = (e) => {
+    setComments(e.target.value);
+    updateSavedTime();
   };
 
   const handleSubmit = (e) => {
@@ -76,12 +79,18 @@ export function FeedbackFormPage() {
       : 5.0;
 
     submitFeedback({
+      formId: activeFeedbackForm?.formId || activeFeedbackForm?._id,
       courseCode: activeFeedbackForm?.courseCode || "CS201",
       courseName: activeFeedbackForm?.courseName || "Introduction to Computer Science",
       facultyName: activeFeedbackForm?.facultyName || "Dr. Alan Turing",
       ratings,
+      ratingsList: Object.entries(ratings).map(([qId, val]) => ({
+        questionId: qId,
+        ratingValue: Number(val),
+      })),
       comments,
-      averageScore: avg
+      averageScore: avg,
+      answersCount: answeredCount,
     });
   };
 
@@ -221,7 +230,7 @@ export function FeedbackFormPage() {
               rows={4}
               maxLength={500}
               value={comments}
-              onChange={(e) => setComments(e.target.value)}
+              onChange={handleCommentChange}
               placeholder="Tell us what you liked or how the instructor can improve..."
               className="w-full rounded-2xl border border-slate-300 p-4 text-sm md:text-base text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
             />

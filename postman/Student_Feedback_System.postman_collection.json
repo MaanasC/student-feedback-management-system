@@ -1,0 +1,342 @@
+{
+  "info": {
+    "name": "Student Feedback Management System API",
+    "_postman_id": "c1f7a0b3-9d41-4832-8431-29e5fa4728d1",
+    "description": "Comprehensive REST API Collection covering Experiment 5 (MongoDB Mongoose CRUD), Experiment 6 (JWT & RBAC), and Experiment 7 (Socket.IO Real-time Notifications) for the Student Feedback Management System.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "student_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "faculty_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. System Health",
+      "item": [
+        {
+          "name": "System Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Authentication (Exp 6: JWT & bcrypt)",
+      "item": [
+        {
+          "name": "Login - Administrator",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('admin_token', jsonData.token);",
+                  "    console.log('Saved admin_token successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"eleanor.vance@university.edu\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - Student",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('student_token', jsonData.token);",
+                  "    console.log('Saved student_token successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"maanas.chawan@university.edu\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Login - Faculty",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('faculty_token', jsonData.token);",
+                  "    console.log('Saved faculty_token successfully');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alan.turing@university.edu\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Get Authenticated Profile (View 12)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{student_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Register New Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Doe\",\n  \"email\": \"jane.doe@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"Student\",\n  \"department\": \"Computer Science\",\n  \"rollNo\": \"CS-2024-099\",\n  \"semester\": 5\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User Management (Exp 5 & 6: Admin RBAC)",
+      "item": [
+        {
+          "name": "Get All Users (Admin only)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/users?role=Student",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"],
+              "query": [{ "key": "role", "value": "Student" }]
+            }
+          }
+        },
+        {
+          "name": "Create User by Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Prof. Claude Shannon\",\n  \"email\": \"claude.shannon@university.edu\",\n  \"password\": \"password123\",\n  \"role\": \"Faculty\",\n  \"department\": \"Computer Science\",\n  \"designation\": \"Professor\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Course Management (Exp 5 CRUD)",
+      "item": [
+        {
+          "name": "Get All Courses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/courses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "courses"]
+            }
+          }
+        },
+        {
+          "name": "Create Course with Co-teaching Faculty (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{admin_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courseCode\": \"AI502\",\n  \"courseName\": \"Reinforcement Learning\",\n  \"department\": \"Computer Science\",\n  \"semester\": \"Fall 2024\",\n  \"credits\": 4\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/courses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "courses"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Feedback Form Management (Exp 5 & 7)",
+      "item": [
+        {
+          "name": "Get All Feedback Forms",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{student_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/feedback-forms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "feedback-forms"]
+            }
+          }
+        },
+        {
+          "name": "Toggle Form Active Status (Triggers Socket.IO Exp 7)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/feedback-forms/<FORM_ID>/toggle-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "feedback-forms", "<FORM_ID>", "toggle-status"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Feedback Submission (Unique Constraint Section 9.2)",
+      "item": [
+        {
+          "name": "Submit Feedback Response (Student only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{student_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"formId\": \"<FORM_ID>\",\n  \"ratings\": [\n    { \"questionId\": \"Q1\", \"ratingValue\": 5 },\n    { \"questionId\": \"Q2\", \"ratingValue\": 4 },\n    { \"questionId\": \"Q3\", \"ratingValue\": 5 },\n    { \"questionId\": \"Q4\", \"ratingValue\": 5 }\n  ],\n  \"comments\": \"The lectures and assignments were clear and well paced.\",\n  \"suggestions\": \"More interactive office hours.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/feedback-responses",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "feedback-responses"]
+            }
+          }
+        },
+        {
+          "name": "Get Student Submitted History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{student_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/feedback-responses/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "feedback-responses", "my"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Analytics & Reports (Views 5, 6, 7, 11)",
+      "item": [
+        {
+          "name": "Faculty Dashboard Analytics (View 5)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{faculty_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/faculty/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "faculty", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Admin System-Wide Summary (View 7 & 11)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{admin_token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/analytics/admin-summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "analytics", "admin-summary"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
