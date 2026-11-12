@@ -4,9 +4,13 @@
  */
 
 import http from 'http';
+import { spawnSync } from 'child_process';
 import mongoose from 'mongoose';
+import jwt from 'jsonwebtoken';
 import { io as ClientIO } from 'socket.io-client';
 import { app, server } from './index.js';
+import { getJwtSecret } from './utils/jwt.js';
+import { getIO } from './sockets/socketHandler.js';
 
 const TEST_PORT = process.env.PORT || 5000;
 
@@ -293,36 +297,137 @@ const runBackendTests = async () => {
     );
 
     // -------------------------------------------------------------------------
-    // TEST SECTION 6: Experiment 7 (Socket.IO WebSockets Real-Time Notifications)
+    // TEST SECTION 6: Experiment 7 (Socket.IO WebSockets Security & Real-Time Delivery)
     // -------------------------------------------------------------------------
-    console.log('\n🔹 Testing Experiment 7: Socket.IO Real-Time Notifications:');
+    console.log('\n🔹 Testing Experiment 7: Socket.IO Security & Real-Time Delivery:');
 
-    const socketClient = ClientIO(`http://localhost:${TEST_PORT}`, {
+    // 6.1 Missing JWT_SECRET in production causes a safe startup failure
+    const startupFailureCheck = spawnSync(
+      process.execPath,
+      ['-e', 'process.env.JWT_SECRET = ""; process.env.NODE_ENV = "production"; import("./server/index.js")'],
+      { encoding: 'utf-8', timeout: 5000 }
+    );
+    assert(
+      startupFailureCheck.status !== 0 && startupFailureCheck.stderr.includes('JWT_SECRET'),
+      'Missing JWT_SECRET in production causes a safe startup failure'
+    );
+
+    // 6.1b Missing MONGODB_URI in production causes a safe startup failure
+    const mongoUriFailureCheck = spawnSync(
+      process.execPath,
+      ['-e', 'process.env.MONGODB_URI = ""; process.env.NODE_ENV = "production"; import("./server/config/db.js").then(m => m.connectDB())'],
+      { encoding: 'utf-8', timeout: 5000 }
+    );
+    assert(
+      mongoUriFailureCheck.status !== 0 && mongoUriFailureCheck.stderr.includes('MONGODB_URI'),
+      'Missing MONGODB_URI in production causes a safe startup failure'
+    );
+
+    // 6.2 Missing socket token is rejected
+    const unauthClient = ClientIO(`http://localhost:${TEST_PORT}`, {
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    const unauthRejected = await new Promise((resolve) => {
+      unauthClient.on('connect_error', (err) => {
+        resolve(err.message.includes('Authentication required'));
+      });
+      unauthClient.on('connect', () => resolve(false));
+      setTimeout(() => resolve(false), 2000);
+    });
+    unauthClient.disconnect();
+    assert(unauthRejected, 'Missing socket token is rejected');
+
+    // 6.3 Invalid JWT is rejected
+    const invalidClient = ClientIO(`http://localhost:${TEST_PORT}`, {
+      auth: { token: 'invalid.forged.signature' },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    const invalidRejected = await new Promise((resolve) => {
+      invalidClient.on('connect_error', (err) => {
+        resolve(err.message.includes('Authentication failed') && err.message.includes('Invalid token'));
+      });
+      invalidClient.on('connect', () => resolve(false));
+      setTimeout(() => resolve(false), 2000);
+    });
+    invalidClient.disconnect();
+    assert(invalidRejected, 'Invalid JWT is rejected');
+
+    // 6.4 Expired JWT is rejected
+    const expiredToken = jwt.sign(
+      { id: studentUser?.id || '6af490da9ee1cc62c34ac8d9', role: 'Student' },
+      getJwtSecret(),
+      { expiresIn: '1ms' }
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    const expiredClient = ClientIO(`http://localhost:${TEST_PORT}`, {
+      auth: { token: expiredToken },
+      transports: ['websocket'],
+      reconnection: false,
+    });
+    const expiredRejected = await new Promise((resolve) => {
+      expiredClient.on('connect_error', (err) => {
+        resolve(err.message.includes('Token has expired'));
+      });
+      expiredClient.on('connect', () => resolve(false));
+      setTimeout(() => resolve(false), 2000);
+    });
+    expiredClient.disconnect();
+    assert(expiredRejected, 'Expired JWT is rejected');
+
+    // Connect authenticated Student A client
+    const studentA_Client = ClientIO(`http://localhost:${TEST_PORT}`, {
+      auth: { token: studentToken },
       transports: ['websocket'],
     });
 
-    const socketConnected = await new Promise((resolve) => {
-      socketClient.on('connect', () => {
-        socketClient.emit('join', {
-          role: 'Student',
-          userId: studentUser?.id,
-          department: studentUser?.department || 'Computer Science',
-        });
-        resolve(true);
-      });
+    const studentA_Connected = await new Promise((resolve) => {
+      studentA_Client.on('connect', () => resolve(true));
+      studentA_Client.on('connect_error', () => resolve(false));
       setTimeout(() => resolve(false), 3000);
     });
-    assert(socketConnected, 'Socket.IO client connected and joined role:Student room');
+    assert(studentA_Connected, 'Authenticated Student A Socket.IO client connects successfully');
 
-    // Test real-time form created notification
-    const notificationPromise = new Promise((resolve) => {
-      socketClient.on('notification:form_created', (data) => {
+    // Retrieve server-side socket instance to verify real room membership (not just error events)
+    const serverSocketA = getIO()?.sockets?.sockets?.get(studentA_Client.id);
+    assert(!!serverSocketA, 'Student A server-side socket instance is accessible for room verification');
+
+    // 6.5 Student A cannot join Student B's private room (verify room membership)
+    const studentB_Id = '6af490da9ee1cc62c34ac999';
+    studentA_Client.emit('join', { userId: studentB_Id });
+    await new Promise((r) => setTimeout(r, 150));
+    assert(
+      !serverSocketA.rooms.has(`user:${studentB_Id}`),
+      'Student A cannot join Student B\'s private room (verified room membership: false)'
+    );
+
+    // 6.6 Student A cannot join another department's room (verify room membership)
+    studentA_Client.emit('join', { department: 'Mechanical Engineering' });
+    await new Promise((r) => setTimeout(r, 150));
+    assert(
+      !serverSocketA.rooms.has('dept:mechanical engineering'),
+      'Student A cannot join another department\'s room (verified room membership: false)'
+    );
+
+    // 6.7 Student cannot join Administrator's role room (verify room membership)
+    studentA_Client.emit('join', { role: 'Administrator' });
+    await new Promise((r) => setTimeout(r, 150));
+    assert(
+      !serverSocketA.rooms.has('role:Administrator'),
+      'Student cannot join Administrator\'s role room (verified room membership: false)'
+    );
+
+    // 6.8 Valid student receives their department's notification
+    const studentNotificationPromise = new Promise((resolve) => {
+      studentA_Client.on('notification:form_created', (data) => {
         resolve(data);
       });
       setTimeout(() => resolve(null), 4000);
     });
 
-    // Trigger form creation via Admin API
+    // Trigger form creation via Admin API for Computer Science course
     const sampleCourse = (await request({ method: 'GET', path: '/api/courses', headers: { Authorization: `Bearer ${adminToken}` } })).data?.courses[0];
     const sampleFaculty = sampleCourse?.facultyIds[0]?._id;
 
@@ -334,7 +439,7 @@ const runBackendTests = async () => {
         body: {
           courseId: sampleCourse._id,
           facultyId: sampleFaculty,
-          title: 'Real-Time Notification Verification Form',
+          title: 'Department-Targeted Verification Form',
           semester: 'Fall 2024',
           endDate: new Date('2024-12-31'),
           status: 'Active',
@@ -342,16 +447,60 @@ const runBackendTests = async () => {
       });
     }
 
-    const receivedNotification = await notificationPromise;
+    const receivedStudentNotification = await studentNotificationPromise;
     assert(
-      !!receivedNotification,
-      'Socket.IO client received real-time notification:form_created event'
+      !!receivedStudentNotification && receivedStudentNotification.department?.toLowerCase() === 'computer science',
+      'Valid student receives their department\'s notification'
     );
-    if (receivedNotification) {
-      console.log(`    ↳ Received payload: "${receivedNotification.title}" - ${receivedNotification.message}`);
+    if (receivedStudentNotification) {
+      console.log(`    ↳ Received payload: "${receivedStudentNotification.title}" - ${receivedStudentNotification.message}`);
     }
 
-    socketClient.disconnect();
+    // 6.9 Existing administrator notification delivery remains functional
+    const adminSocketClient = ClientIO(`http://localhost:${TEST_PORT}`, {
+      auth: { token: adminToken },
+      transports: ['websocket'],
+    });
+
+    const adminSocketConnected = await new Promise((resolve) => {
+      adminSocketClient.on('connect', () => resolve(true));
+      adminSocketClient.on('connect_error', () => resolve(false));
+      setTimeout(() => resolve(false), 3000);
+    });
+    assert(adminSocketConnected, 'Administrator Socket.IO client connects successfully');
+
+    const adminServerSocket = getIO()?.sockets?.sockets?.get(adminSocketClient.id);
+    assert(
+      adminServerSocket?.rooms?.has('role:Administrator'),
+      'Administrator socket automatically joins role:Administrator room'
+    );
+
+    const adminNotificationPromise = new Promise((resolve) => {
+      adminSocketClient.on('notification:feedback_received', (data) => resolve(data));
+      setTimeout(() => resolve(null), 4000);
+    });
+
+    // Trigger feedback submission notification to test administrative delivery
+    const { emitFeedbackSubmitted } = await import('./sockets/socketHandler.js');
+    await emitFeedbackSubmitted({
+      facultyUserId: sampleFaculty,
+      courseCode: sampleCourse?.courseCode || 'CS101',
+      courseName: sampleCourse?.courseName || 'Computer Science',
+      responseId: new mongoose.Types.ObjectId(),
+      formId: new mongoose.Types.ObjectId(),
+    });
+
+    const receivedAdminNotification = await adminNotificationPromise;
+    assert(
+      !!receivedAdminNotification && receivedAdminNotification.title.includes('New Student Feedback Submitted'),
+      'Existing administrator notification delivery remains functional'
+    );
+    if (receivedAdminNotification) {
+      console.log(`    ↳ Admin received payload: "${receivedAdminNotification.title}" - ${receivedAdminNotification.message}`);
+    }
+
+    studentA_Client.disconnect();
+    adminSocketClient.disconnect();
 
     // -------------------------------------------------------------------------
     // TEST SECTION 7: Persistent Notifications API (MongoDB Atlas)

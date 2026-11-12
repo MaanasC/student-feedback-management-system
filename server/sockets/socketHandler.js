@@ -1,57 +1,131 @@
 import { Server } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import Student from '../models/Student.js';
 import Course from '../models/Course.js';
+import { isOriginAllowed } from '../config/cors.js';
+import { verifyJWT } from '../utils/jwt.js';
 
 let ioInstance = null;
 
 export const initSocket = (httpServer) => {
   ioInstance = new Server(httpServer, {
     cors: {
-      origin: '*', // Allow frontend dev server and clients
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+          callback(null, true);
+        } else {
+          console.warn(`[Socket.IO CORS Blocked] Origin '${origin}' rejected.`);
+          callback(new Error(`CORS error: Origin '${origin}' is not authorized for WebSocket connection.`));
+        }
+      },
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      credentials: true,
     },
   });
 
-  ioInstance.on('connection', (socket) => {
-    console.log(`[Socket.IO] New client connected: ${socket.id}`);
+  // Enforce mandatory JWT authentication on WebSocket handshake
+  ioInstance.use(async (socket, next) => {
+    try {
+      // Prefer handshake.auth.token, followed by Authorization header.
+      // Query string token authentication is intentionally excluded to prevent token leakage in server logs.
+      const token =
+        socket.handshake.auth?.token ||
+        socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '');
 
-    // Allow client to register with their role and user ID
+      if (!token) {
+        return next(new Error('Authentication required: No token provided for WebSocket connection'));
+      }
+
+      let decoded;
+      try {
+        decoded = verifyJWT(token);
+      } catch (jwtErr) {
+        if (jwtErr.name === 'TokenExpiredError') {
+          return next(new Error('Authentication failed: Token has expired'));
+        }
+        return next(new Error('Authentication failed: Invalid token'));
+      }
+
+      // Query authoritative user record from database (never rely on client claims)
+      const user = await User.findById(decoded.id).select('_id name email role department');
+      if (!user) {
+        return next(new Error('Authentication failed: User does not exist in database'));
+      }
+
+      // Authoritative department lookup from database
+      let authoritativeDepartment = user.department || null;
+      if (user.role === 'Student') {
+        const studentDoc = await Student.findOne({ userId: user._id }).select('department');
+        if (studentDoc?.department) {
+          authoritativeDepartment = studentDoc.department;
+        }
+      }
+
+      // Attach authoritative identity to socket
+      socket.data.user = {
+        id: user._id.toString(),
+        name: user.name,
+        role: user.role,
+        department: authoritativeDepartment ? authoritativeDepartment.trim().toLowerCase() : null,
+      };
+
+      next();
+    } catch (err) {
+      console.error('[Socket.IO Auth Middleware Error]:', err.message);
+      next(new Error('Internal server error during socket authentication'));
+    }
+  });
+
+  ioInstance.on('connection', (socket) => {
+    const authUser = socket.data.user;
+    if (!authUser) {
+      socket.disconnect(true);
+      return;
+    }
+
+    // Automatically join trusted rooms derived from verified database information
+    socket.join(`user:${authUser.id}`);
+    socket.join(`role:${authUser.role}`);
+    if (authUser.department) {
+      socket.join(`dept:${authUser.department}`);
+    }
+
+    console.log(`[Socket.IO] Authenticated socket connected: ${socket.id} (User: ${authUser.id}, Role: ${authUser.role}, Dept: ${authUser.department || 'N/A'})`);
+
+    // Strictly validate any client-requested room confirmations (prevent cross-user / cross-dept spoofing)
     socket.on('join', (data) => {
       const { role, userId, department } = data || {};
-      if (role) {
-        socket.join(`role:${role}`);
-        console.log(`[Socket.IO] Socket ${socket.id} joined role room: role:${role}`);
-      }
-      if (userId) {
-        socket.join(`user:${userId}`);
-        console.log(`[Socket.IO] Socket ${socket.id} joined user room: user:${userId}`);
-      }
-      if (department) {
-        const normDept = department.trim().toLowerCase();
-        socket.join(`dept:${normDept}`);
-        console.log(`[Socket.IO] Socket ${socket.id} joined department room: dept:${normDept}`);
-      }
-    });
 
-    // Optional: Authenticated handshake with JWT
-    socket.on('authenticate', (token) => {
-      try {
-        const decoded = jwt.verify(
-          token,
-          process.env.JWT_SECRET || 'university_super_secret_jwt_key_2026'
-        );
-        socket.join(`user:${decoded.id}`);
-        socket.join(`role:${decoded.role}`);
-        if (decoded.department) {
-          const normDept = decoded.department.trim().toLowerCase();
-          socket.join(`dept:${normDept}`);
-        }
-        socket.emit('authenticated', { success: true, user: decoded });
-      } catch (err) {
-        socket.emit('auth_error', { message: 'Invalid token' });
+      // Security check: Reject attempt to join another user's room
+      if (userId && userId !== authUser.id) {
+        console.warn(`[Socket.IO Security Alert] Socket ${socket.id} attempted unauthorized user room join: user:${userId}`);
+        socket.emit('security_error', { message: 'Unauthorized user room join rejected' });
+        socket.emit('error', { message: 'Unauthorized room join attempt rejected' });
+        return;
+      }
+
+      // Security check: Reject attempt to join unauthorized role room
+      if (role && role !== authUser.role) {
+        console.warn(`[Socket.IO Security Alert] Socket ${socket.id} attempted unauthorized role room join: role:${role}`);
+        socket.emit('security_error', { message: 'Unauthorized role room join rejected' });
+        socket.emit('error', { message: 'Unauthorized role room join attempt rejected' });
+        return;
+      }
+
+      // Security check: Reject attempt to join unauthorized department room
+      if (department && department.trim().toLowerCase() !== authUser.department) {
+        console.warn(`[Socket.IO Security Alert] Socket ${socket.id} attempted unauthorized department room join: dept:${department}`);
+        socket.emit('security_error', { message: 'Unauthorized department room join rejected' });
+        socket.emit('error', { message: 'Unauthorized department room join attempt rejected' });
+        return;
+      }
+
+      // Re-confirm authenticated rooms only
+      socket.join(`user:${authUser.id}`);
+      socket.join(`role:${authUser.role}`);
+      if (authUser.department) {
+        socket.join(`dept:${authUser.department}`);
       }
     });
 

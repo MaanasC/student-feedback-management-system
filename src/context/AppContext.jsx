@@ -7,7 +7,7 @@ import {
   MOCK_ANALYSIS_DATA,
   MOCK_ADMIN_METRICS,
 } from "../data/mockData";
-import { initSocketClient } from "../services/socket";
+import { initSocketClient, disconnectSocket } from "../services/socket";
 import { api } from "../services/api";
 
 const AppContext = createContext();
@@ -322,6 +322,10 @@ export function AppProvider({ children }) {
 
   // Socket.IO Real-Time Listener (Experiment 7)
   useEffect(() => {
+    if (!currentUser) {
+      disconnectSocket();
+      return;
+    }
     try {
       const socket = initSocketClient(
         currentRole,
@@ -744,6 +748,7 @@ export function AppProvider({ children }) {
   };
 
   const logout = () => {
+    disconnectSocket();
     setCurrentUser(null);
     setCurrentView("login");
     try {

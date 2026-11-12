@@ -116,14 +116,17 @@ npm run seed
 3. Connect your GitHub repository.
 4. Set the following settings:
    - **Root Directory**: Leave blank (or `.`)
+   - **Environment**: Node (or Docker with Dockerfile path: `server/Dockerfile` and Context: `.`)
    - **Build Command**: `npm ci`
-   - **Start Command**: `node server/index.js`
+   - **Start Command**: `node server/index.js` (or `npm start`)
 5. Under **Environment Variables**, add:
    - `NODE_ENV`: `production`
-   - `PORT`: `5000`
    - `MONGODB_URI`: Your MongoDB Atlas URI
-   - `JWT_SECRET`: A secure random secret string
+   - `JWT_SECRET`: A secure random secret string (minimum 32 characters)
    - `JWT_EXPIRES_IN`: `7d`
+   - `AUTO_SEED`: `false`
+   - `CLIENT_URL`: `https://<your-vercel-app>.vercel.app` (exact production domain and explicitly configured preview URLs only; unrelated Vercel deployments are rejected for security)
+   *(Note: Do not define `PORT` on Render. Render automatically injects `process.env.PORT` into the running container. The backend automatically defaults to port `5000` only during local development).*
 6. Click **Deploy Web Service**. You will receive an endpoint like `https://student-feedback-backend.onrender.com`.
 
 #### 2. Frontend Deployment on Vercel

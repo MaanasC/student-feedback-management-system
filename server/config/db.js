@@ -6,10 +6,22 @@ dotenv.config();
 
 export const connectDB = async () => {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/StudentFeedbackDB';
+    const isProduction = process.env.NODE_ENV === 'production';
+    let mongoUri = process.env.MONGODB_URI;
+
+    if (!mongoUri || !mongoUri.trim()) {
+      if (isProduction) {
+        console.error('[FATAL CONFIG ERROR] MONGODB_URI environment variable is required in production. Server startup aborted.');
+        process.exit(1);
+      }
+      mongoUri = 'mongodb://127.0.0.1:27017/StudentFeedbackDB';
+    }
+
+    const allowLocalInvalidCerts = !isProduction && (process.env.ALLOW_INVALID_CERTS === 'true' || process.platform === 'win32');
+
     const conn = await mongoose.connect(mongoUri, {
       autoIndex: true, // Build unique indexes like { formId: 1, studentId: 1 }
-      tlsAllowInvalidCertificates: true, // Resolves Windows TLS LEAF_SIGNATURE validation with Atlas clusters
+      ...(allowLocalInvalidCerts ? { tlsAllowInvalidCertificates: true } : {}),
     });
 
     console.log(`[MongoDB] Connected successfully to host: ${conn.connection.host}, database: ${conn.connection.name}`);

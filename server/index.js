@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 
 import connectDB from './config/db.js';
+import { corsOptions } from './config/cors.js';
 import { initSocket } from './sockets/socketHandler.js';
 import errorHandler from './middleware/error.middleware.js';
 
@@ -19,6 +20,14 @@ import notificationRoutes from './routes/notification.routes.js';
 
 // Load environment variables
 dotenv.config();
+
+// Enforce critical security configuration: fail startup immediately if JWT_SECRET is missing in production
+if (!process.env.JWT_SECRET || !process.env.JWT_SECRET.trim()) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[FATAL SECURITY ERROR] Missing JWT_SECRET in production environment. Server startup aborted.');
+    process.exit(1);
+  }
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -39,7 +48,7 @@ connectDB().then(async () => {
 });
 
 // Core Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -83,10 +92,11 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+const HOST = '0.0.0.0';
 
 if (process.env.NODE_ENV !== 'test' && !process.argv[1]?.includes('test-backend')) {
-  server.listen(PORT, () => {
-    console.log(`[Server] Student Feedback System backend running on http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`[Server] Student Feedback System backend running on http://${HOST}:${PORT}`);
     console.log(`[Socket.IO] Real-time notification server active`);
   });
 }
